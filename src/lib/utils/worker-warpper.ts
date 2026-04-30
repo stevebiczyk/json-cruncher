@@ -1,4 +1,5 @@
 import type {
+  CruncherProgress,
   WorkerRequest,
   WorkerResponse,
   ProcessedData,
@@ -7,24 +8,28 @@ import type {
 export class WorkerManager {
   private worker: Worker | null = null;
   private messageId = 0;
+  private activeRequests = new Map<
+    number,
+    {
+      resolve: (data: ProcessedData) => void;
+      reject: (error: Error) => void;
+      onProgress?: (progress: CruncherProgress) => void;
+    }
+  >();
 
   /**
    * Process JSON data in a Web Worker
-   * @param jsonString - Raw JSON string to process
+   * @param file - JSON file selected by the user
    * @param onProgress - Optional callback for progress updates
    * @returns Promise that resolves with processed data
    */
   async processJSON(
-    jsonString: string,
-    onProgress?: (progress: { progress: number; message: string }) => void,
+    file: File,
+    onProgress?: (progress: CruncherProgress) => void,
   ): Promise<ProcessedData> {
-    // Create worker lazily
-    if (!this.worker) {
-      this.worker = new Worker(
-        new URL("../workers/data-processor.worker.ts", import.meta.url),
-        { type: "module" },
-      );
-    }
+    const jsonString = await file.text();
+    const requestId = this.messageId++;
+    this.ensureWorker();
 
     return new Promise<ProcessedData>((resolve, reject) => {
       if (!this.worker) {
@@ -32,35 +37,29 @@ export class WorkerManager {
         return;
       }
 
-      const handleMessage = (event: MessageEvent<WorkerResponse>) => {
-        const response = event.data;
+      this.activeRequests.set(requestId, { resolve, reject, onProgress });
 
-        switch (response.type) {
-          case "SUCCESS":
-            this.worker?.removeEventListener("message", handleMessage);
-            resolve(response.payload);
-            break;
-
-          case "PROGRESS":
-            onProgress?.(response.payload);
-            break;
-
-          case "ERROR":
-            this.worker?.removeEventListener("message", handleMessage);
-            reject(new Error(response.payload.error));
-            break;
-        }
-      };
-
-      this.worker.addEventListener("message", handleMessage);
-
-      // Send request to worker
       const request: WorkerRequest = {
         type: "PROCESS_JSON",
-        payload: jsonString,
+        requestId,
+        payload: {
+          jsonString,
+          fileName: file.name,
+          fileSizeBytes: file.size,
+        },
       };
+
       this.worker.postMessage(request);
     });
+  }
+
+  cancelActiveWork(): void {
+    for (const requestId of this.activeRequests.keys()) {
+      this.worker?.postMessage({ type: "CANCEL", requestId } satisfies WorkerRequest);
+    }
+
+    this.activeRequests.clear();
+    this.terminate();
   }
 
   /**
@@ -72,4 +71,52 @@ export class WorkerManager {
       this.worker = null;
     }
   }
+
+  private ensureWorker(): void {
+    if (this.worker) {
+      return;
+    }
+
+    this.worker = new Worker(
+      new URL("../workers/jsonCruncher.worker.ts", import.meta.url),
+      { type: "module" },
+    );
+
+    this.worker.addEventListener("message", this.handleMessage);
+    this.worker.addEventListener("error", this.handleWorkerError);
+  }
+
+  private handleMessage = (event: MessageEvent<WorkerResponse>) => {
+    const response = event.data;
+    const request = this.activeRequests.get(response.requestId);
+
+    if (!request) {
+      return;
+    }
+
+    switch (response.type) {
+      case "SUCCESS":
+        this.activeRequests.delete(response.requestId);
+        request.resolve(response.payload);
+        break;
+
+      case "PROGRESS":
+        request.onProgress?.(response.payload);
+        break;
+
+      case "ERROR":
+        this.activeRequests.delete(response.requestId);
+        request.reject(new Error(response.payload.error));
+        break;
+    }
+  };
+
+  private handleWorkerError = (event: ErrorEvent) => {
+    for (const request of this.activeRequests.values()) {
+      request.reject(new Error(event.message || "Worker failed"));
+    }
+
+    this.activeRequests.clear();
+    this.terminate();
+  };
 }

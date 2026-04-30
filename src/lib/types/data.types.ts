@@ -1,40 +1,61 @@
-// ============================================
-// WORKER MESSAGE TYPES
-// =============================================
+export interface CruncherProgress {
+  progress: number;
+  message: string;
+}
 
-// Messages sent to the worker
+export interface ProcessJsonPayload {
+  jsonString: string;
+  fileName: string;
+  fileSizeBytes: number;
+}
+
 export type WorkerRequest =
-  | { type: "PROCESS_JSON"; payload: string }
-  | { type: "CANCEL" };
+  | {
+      type: "PROCESS_JSON";
+      requestId: number;
+      payload: ProcessJsonPayload;
+    }
+  | { type: "CANCEL"; requestId: number };
 
-// Messages received from the worker
 export type WorkerResponse =
-  | { type: "SUCCESS"; payload: ProcessedData }
-  | { type: "PROGRESS"; payload: { progress: number; message: string } }
-  | { type: "ERROR"; payload: { error: string } };
+  | { type: "SUCCESS"; requestId: number; payload: ProcessedData }
+  | { type: "PROGRESS"; requestId: number; payload: CruncherProgress }
+  | { type: "ERROR"; requestId: number; payload: { error: string } };
 
-// ============================================
-// DATA STRUCTURES
-// ============================================
-
-// Results returned by the worker
 export interface ProcessedData {
+  fileName: string;
+  fileSizeBytes: number;
+  sourceShape: string;
   totalRecords: number;
-  totalRevenue: number;
-  averageOrderValue: number;
-  uniqueCustomers: number;
+  totalFields: number;
+  numericFieldCount: number;
+  stringFieldCount: number;
+  booleanFieldCount: number;
+  nullishFieldCount: number;
+  primaryNumericField: string | null;
+  primaryCategoryField: string | null;
+  numericMetrics: NumericMetric[];
   histogram: HistogramBucket[];
   topItems: TopItem[];
   processingTimeMs: number;
+  warnings: string[];
+}
+
+export interface NumericMetric {
+  field: string;
+  count: number;
+  sum: number;
+  average: number;
+  min: number;
+  max: number;
 }
 
 export interface HistogramBucket {
   label: string;
-  value: number;
+  count: number;
 }
 
 export interface TopItem {
-  id: string;
   name: string;
-  value: number;
+  count: number;
 }
