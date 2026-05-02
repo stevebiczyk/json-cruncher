@@ -59,16 +59,16 @@ const reportProgress = (
 const isObjectRecord = (value: unknown): value is JsonObject =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const describeShape = (value: unknown) => {
+const describeShape = (value: unknown): "array" | "object" | "primitive" => {
   if (Array.isArray(value)) {
-    return `Root array with ${value.length.toLocaleString()} items`;
+    return "array";
   }
 
   if (isObjectRecord(value)) {
-    return `Root object with ${Object.keys(value).length.toLocaleString()} keys`;
+    return "object";
   }
 
-  return `Root ${typeof value}`;
+  return "primitive";
 };
 
 const findRecordArray = (value: unknown): JsonObject[] => {
@@ -140,7 +140,9 @@ const pickPreferredField = (
   preferredNames: string[],
   fallback: string | null,
 ) => {
-  const lowerFieldMap = new Map(fields.map((field) => [field.toLowerCase(), field]));
+  const lowerFieldMap = new Map(
+    fields.map((field) => [field.toLowerCase(), field]),
+  );
 
   for (const name of preferredNames) {
     const match = lowerFieldMap.get(name.toLowerCase());
@@ -165,7 +167,10 @@ const buildHistogram = (
     return [{ label: String(metric.min), count: values.length }];
   }
 
-  const bucketCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(values.length))));
+  const bucketCount = Math.min(
+    8,
+    Math.max(4, Math.ceil(Math.sqrt(values.length))),
+  );
   const bucketSize = (metric.max - metric.min) / bucketCount;
   const buckets = Array.from({ length: bucketCount }, (_, index) => {
     const start = metric.min + index * bucketSize;
@@ -269,8 +274,13 @@ const processJson = (
     }
 
     if (index > 0 && index % 5000 === 0) {
-      const progress = 55 + Math.min(30, Math.round((index / records.length) * 30));
-      reportProgress(requestId, progress, `Processed ${index.toLocaleString()} records`);
+      const progress =
+        55 + Math.min(30, Math.round((index / records.length) * 30));
+      reportProgress(
+        requestId,
+        progress,
+        `Processed ${index.toLocaleString()} records`,
+      );
     }
   });
 
@@ -294,10 +304,11 @@ const processJson = (
     numericMetrics[0]?.field ?? null,
   );
   const primaryMetric =
-    numericMetrics.find((metric) => metric.field === primaryNumericField) ?? null;
+    numericMetrics.find((metric) => metric.field === primaryNumericField) ??
+    null;
   const primaryValues =
     primaryNumericField && numericStats.has(primaryNumericField)
-      ? numericStats.get(primaryNumericField)?.values ?? []
+      ? (numericStats.get(primaryNumericField)?.values ?? [])
       : [];
 
   const categoryFields = [...categoryCounts.entries()]
@@ -371,7 +382,8 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       type: "ERROR",
       requestId: request.requestId,
       payload: {
-        error: error instanceof Error ? error.message : "Failed to process JSON",
+        error:
+          error instanceof Error ? error.message : "Failed to process JSON",
       },
     });
   }

@@ -9,7 +9,7 @@ export class WorkerManager {
   private worker: Worker | null = null;
   private messageId = 0;
   private activeRequests = new Map<
-    number,
+    string,
     {
       resolve: (data: ProcessedData) => void;
       reject: (error: Error) => void;
@@ -28,7 +28,7 @@ export class WorkerManager {
     onProgress?: (progress: CruncherProgress) => void,
   ): Promise<ProcessedData> {
     const jsonString = await file.text();
-    const requestId = this.messageId++;
+    const requestId = crypto.randomUUID();
     this.ensureWorker();
 
     return new Promise<ProcessedData>((resolve, reject) => {
@@ -55,7 +55,10 @@ export class WorkerManager {
 
   cancelActiveWork(): void {
     for (const requestId of this.activeRequests.keys()) {
-      this.worker?.postMessage({ type: "CANCEL", requestId } satisfies WorkerRequest);
+      this.worker?.postMessage({
+        type: "CANCEL",
+        requestId,
+      } satisfies WorkerRequest);
     }
 
     this.activeRequests.clear();

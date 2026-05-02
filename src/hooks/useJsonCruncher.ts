@@ -1,11 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  CruncherProgress,
-  ProcessedData,
-} from "@/lib/types/data.types";
-import { WorkerManager } from "@/lib/utils/worker-warpper";
+import type { CruncherProgress, ProcessedData } from "@/lib/types/data.types";
+import { WorkerManager } from "@/lib/utils/worker-wrapper";
 
 type CruncherStatus = "idle" | "reading" | "processing" | "success" | "error";
 
