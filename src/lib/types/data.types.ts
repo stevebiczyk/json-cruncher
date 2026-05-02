@@ -3,41 +3,38 @@ export interface CruncherProgress {
   message: string;
 }
 
+export type RequestId = string;
+
 export interface ProcessJsonPayload {
   jsonString: string;
   fileName: string;
   fileSizeBytes: number;
-  cancellationToken: { isCancelled: boolean };
 }
 
 export type WorkerRequest =
   | {
       type: "PROCESS_JSON";
-      requestId: number;
+      requestId: RequestId;
       payload: ProcessJsonPayload;
     }
-  | { type: "CANCEL"; requestId: number };
+  | { type: "CANCEL"; requestId: RequestId };
 
 export type WorkerResponse =
-  | { type: "SUCCESS"; requestId: number; payload: ProcessedData }
-  | { type: "PROGRESS"; requestId: number; payload: CruncherProgress }
-  | { type: "ERROR"; requestId: number; payload: { error: string } };
+  | { type: "SUCCESS"; requestId: RequestId; payload: ProcessedData }
+  | { type: "PROGRESS"; requestId: RequestId; payload: CruncherProgress }
+  | { type: "ERROR"; requestId: RequestId; payload: { error: string } };
 
-export interface fileMetaData {
+export interface FileMetaData {
   fileName: string;
   fileSizeBytes: number;
   processingTimeMs: number;
   warnings: string[];
 }
-export type jsonShape =
-  | "array"
-  | "object"
-  | "nested "
-  | "primitive"
-  | "unknown";
 
-export interface analysisResult {
-  sourceShape: jsonShape;
+export type JsonShape = "array" | "object" | "nested" | "primitive" | "unknown";
+
+export interface AnalysisResult {
+  sourceShape: JsonShape;
   totalRecords: number;
   totalFields: number;
   numericFieldCount: number;
@@ -51,26 +48,7 @@ export interface analysisResult {
   topItems: TopItem[];
 }
 
-export interface ProcessedData extends fileMetaData, analysisResult {}
-
-// export interface ProcessedData {
-//   fileName: string;
-//   fileSizeBytes: number;
-//   sourceShape: string;
-//   totalRecords: number;
-//   totalFields: number;
-//   numericFieldCount: number;
-//   stringFieldCount: number;
-//   booleanFieldCount: number;
-//   nullishFieldCount: number;
-//   primaryNumericField: string | null;
-//   primaryCategoryField: string | null;
-//   numericMetrics: NumericMetric[];
-//   histogram: HistogramBucket[];
-//   topItems: TopItem[];
-//   processingTimeMs: number;
-//   warnings: string[];
-// }
+export interface ProcessedData extends FileMetaData, AnalysisResult {}
 
 export interface NumericMetric {
   field: string;

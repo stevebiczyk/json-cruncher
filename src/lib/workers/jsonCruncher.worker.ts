@@ -1,7 +1,9 @@
 import type {
   HistogramBucket,
+  JsonShape,
   NumericMetric,
   ProcessedData,
+  RequestId,
   TopItem,
   WorkerRequest,
   WorkerResponse,
@@ -45,7 +47,7 @@ const postWorkerMessage = (message: WorkerResponse) => {
 };
 
 const reportProgress = (
-  requestId: number,
+  requestId: RequestId,
   progress: number,
   message: string,
 ) => {
@@ -59,12 +61,22 @@ const reportProgress = (
 const isObjectRecord = (value: unknown): value is JsonObject =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const describeShape = (value: unknown): "array" | "object" | "primitive" => {
+const hasNestedRecordArray = (value: JsonObject) =>
+  Object.values(value).some(
+    (item) =>
+      Array.isArray(item) && item.some((nestedItem) => isObjectRecord(nestedItem)),
+  );
+
+const describeShape = (value: unknown): JsonShape => {
   if (Array.isArray(value)) {
     return "array";
   }
 
   if (isObjectRecord(value)) {
+    if (hasNestedRecordArray(value)) {
+      return "nested";
+    }
+
     return "object";
   }
 
@@ -199,7 +211,7 @@ const formatNumber = (value: number) =>
   }).format(value);
 
 const processJson = (
-  requestId: number,
+  requestId: RequestId,
   jsonString: string,
   fileName: string,
   fileSizeBytes: number,

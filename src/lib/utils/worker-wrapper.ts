@@ -7,7 +7,6 @@ import type {
 
 export class WorkerManager {
   private worker: Worker | null = null;
-  private messageId = 0;
   private activeRequests = new Map<
     string,
     {
