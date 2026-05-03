@@ -1,3 +1,4 @@
+import { request } from "https";
 import type {
   CruncherProgress,
   WorkerRequest,
@@ -81,11 +82,12 @@ export class WorkerManager {
   // }
 
   cancelActiveWork(): void {
-    for (const requestId of this.activeRequests.keys()) {
+    for (const [requestId, request] of this.activeRequests.entries()) {
       this.worker?.postMessage({
         type: "CANCEL",
         requestId,
       } satisfies WorkerRequest);
+      request.reject(new Error("Request cancelled by user"));
     }
 
     this.activeRequests.clear();
