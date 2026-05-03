@@ -26,19 +26,20 @@ export class WorkerManager {
     file: File,
     onProgress?: (progress: CruncherProgress) => void,
   ): Promise<ProcessedData> {
-    const jsonString = await file.text();
-    const requestId = crypto.randomUUID();
     this.ensureWorker();
+    const requestId = crypto.randomUUID();
+    const jsonString = await file.text();
+
+    if (!this.worker) {
+      throw new Error("Worker was terminated before processing could start");
+    }
+
+    const worker = this.worker;
 
     return new Promise<ProcessedData>((resolve, reject) => {
-      if (!this.worker) {
-        reject(new Error("Worker failed to initialize"));
-        return;
-      }
-
       this.activeRequests.set(requestId, { resolve, reject, onProgress });
 
-      const request: WorkerRequest = {
+      worker.postMessage({
         type: "PROCESS_JSON",
         requestId,
         payload: {
@@ -46,11 +47,38 @@ export class WorkerManager {
           fileName: file.name,
           fileSizeBytes: file.size,
         },
-      };
-
-      this.worker.postMessage(request);
+      } satisfies WorkerRequest);
     });
   }
+  // async processJSON(
+  //   file: File,
+  //   onProgress?: (progress: CruncherProgress) => void,
+  // ): Promise<ProcessedData> {
+  //   const jsonString = await file.text();
+  //   const requestId = crypto.randomUUID();
+  //   this.ensureWorker();
+
+  //   return new Promise<ProcessedData>((resolve, reject) => {
+  //     if (!this.worker) {
+  //       reject(new Error("Worker failed to initialize"));
+  //       return;
+  //     }
+
+  //     this.activeRequests.set(requestId, { resolve, reject, onProgress });
+
+  //     const request: WorkerRequest = {
+  //       type: "PROCESS_JSON",
+  //       requestId,
+  //       payload: {
+  //         jsonString,
+  //         fileName: file.name,
+  //         fileSizeBytes: file.size,
+  //       },
+  //     };
+
+  //     this.worker.postMessage(request);
+  //   });
+  // }
 
   cancelActiveWork(): void {
     for (const requestId of this.activeRequests.keys()) {
@@ -114,6 +142,8 @@ export class WorkerManager {
   };
 
   private handleWorkerError = (event: ErrorEvent) => {
+    console.error("[WorkerManager] Worker crashed:", event.message, event);
+
     for (const request of this.activeRequests.values()) {
       request.reject(new Error(event.message || "Worker failed"));
     }
